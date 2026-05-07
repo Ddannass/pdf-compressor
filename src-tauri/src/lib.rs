@@ -3,7 +3,18 @@ use tauri::Manager;
 
 #[tauri::command]
 fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, String> {
-    let output_path = input_path.replace(".pdf", "_compressed.pdf");
+    let desktop = dirs::desktop_dir()
+        .ok_or("Failed to locate desktop")?;
+
+    let file_name = std::path::Path::new(&input_path)
+        .file_stem()
+        .unwrap()
+        .to_string_lossy();
+
+    let output_path = desktop
+        .join(format!("{}_compressed.pdf", file_name))
+        .to_string_lossy()
+        .to_string();
 
     let temp_dir = std::env::temp_dir().join("pdfcompressor");
 
@@ -51,6 +62,7 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
             pattern.to_str().unwrap(),
             &output_path,
         ])
+        .current_dir(&temp_dir)
         .status()
         .map_err(|e| e.to_string())?;
 
