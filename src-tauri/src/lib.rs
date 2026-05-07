@@ -1,18 +1,36 @@
 use std::process::Command;
+use tauri::Manager;
 
 #[tauri::command]
-fn compress_pdf(input_path: String) -> Result<String, String> {
+fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, String> {
     let output_path = input_path.replace(".pdf", "_compressed.pdf");
 
-    let temp_dir = "/tmp/pdfcompressor";
+    let temp_dir = std::env::temp_dir().join("pdfcompressor");
 
-    let _ = std::fs::remove_dir_all(temp_dir);
-    std::fs::create_dir_all(temp_dir).unwrap();
+    let _ = std::fs::remove_dir_all(&temp_dir);
+    std::fs::create_dir_all(&temp_dir).unwrap();
 
-    let status = Command::new("pdftoppm")
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| e.to_string())?;
+
+    let poppler_path = resource_dir
+        .join("resources")
+        .join("poppler")
+        .join("pdftoppm.exe");
+
+    let magick_path = resource_dir
+        .join("resources")
+        .join("magick")
+        .join("magick.exe");
+
+    let page_prefix = temp_dir.join("page");
+
+    let status = Command::new(poppler_path)
         .args([
             &input_path,
-            &format!("{}/page", temp_dir),
+            page_prefix.to_str().unwrap(),
             "-jpeg",
             "-jpegopt",
             "quality=25",
@@ -26,9 +44,11 @@ fn compress_pdf(input_path: String) -> Result<String, String> {
         return Err("Failed to convert PDF pages".into());
     }
 
-    let status = Command::new("magick")
+    let pattern = temp_dir.join("page-*.jpg");
+
+    let status = Command::new(magick_path)
         .args([
-            &format!("{}/page-*.jpg", temp_dir),
+            pattern.to_str().unwrap(),
             &output_path,
         ])
         .status()
@@ -38,7 +58,7 @@ fn compress_pdf(input_path: String) -> Result<String, String> {
         return Err("Failed to rebuild PDF".into());
     }
 
-    let _ = std::fs::remove_dir_all(temp_dir);
+    let _ = std::fs::remove_dir_all(&temp_dir);
 
     Ok(output_path)
 }
