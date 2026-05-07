@@ -55,14 +55,32 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
         return Err("Failed to convert PDF pages".into());
     }
 
-    let pattern = temp_dir.join("page-*.jpg");
+    let mut jpgs: Vec<_> = std::fs::read_dir(&temp_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension()
+                .map(|ext| ext == "jpg")
+                .unwrap_or(false)
+        })
+        .collect();
 
-    let status = Command::new(magick_path)
-        .args([
-            pattern.to_str().unwrap(),
-            &output_path,
-        ])
-        .current_dir(&temp_dir)
+    jpgs.sort();
+
+    if jpgs.is_empty() {
+        return Err("No JPG pages generated".into());
+    }
+
+    let mut cmd = Command::new(magick_path);
+
+    for jpg in &jpgs {
+        cmd.arg(jpg);
+    }
+
+    cmd.arg(&output_path);
+
+    let status = cmd
         .status()
         .map_err(|e| e.to_string())?;
 
