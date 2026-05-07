@@ -29,24 +29,16 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
         .resource_dir()
         .map_err(|e| e.to_string())?;
 
-    #[cfg(target_os = "windows")]
     let poppler_path = resource_dir
         .join("resources")
         .join("poppler")
         .join("bin")
         .join("pdftoppm.exe");
 
-    #[cfg(not(target_os = "windows"))]
-    let poppler_path = "pdftoppm";
-
-    #[cfg(target_os = "windows")]
     let magick_path = resource_dir
         .join("resources")
         .join("magick")
         .join("convert.exe");
-
-    #[cfg(not(target_os = "windows"))]
-    let magick_path = "magick";
 
     let page_prefix = temp_dir.join("page");
 
