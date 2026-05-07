@@ -34,7 +34,7 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
     let magick_path = resource_dir
         .join("resources")
         .join("magick")
-        .join("magick.exe");
+        .join("convert.exe");
 
     let page_prefix = temp_dir.join("page");
 
