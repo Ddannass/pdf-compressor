@@ -1,6 +1,9 @@
 use std::process::Command;
 use tauri::Manager;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 #[tauri::command]
 fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, String> {
     let desktop = dirs::desktop_dir()
@@ -26,27 +29,43 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
         .resource_dir()
         .map_err(|e| e.to_string())?;
 
+    #[cfg(target_os = "windows")]
     let poppler_path = resource_dir
         .join("resources")
         .join("poppler")
+        .join("bin")
         .join("pdftoppm.exe");
 
+    #[cfg(not(target_os = "windows"))]
+    let poppler_path = "pdftoppm";
+
+    #[cfg(target_os = "windows")]
     let magick_path = resource_dir
         .join("resources")
         .join("magick")
         .join("convert.exe");
 
+    #[cfg(not(target_os = "windows"))]
+    let magick_path = "magick";
+
     let page_prefix = temp_dir.join("page");
 
-    let status = Command::new(poppler_path)
+    let mut poppler_cmd = Command::new(poppler_path);
+
+    #[cfg(target_os = "windows")]
+    {
+        poppler_cmd.creation_flags(0x08000000);
+    }
+
+    let status = poppler_cmd
         .args([
             &input_path,
             page_prefix.to_str().unwrap(),
             "-jpeg",
             "-jpegopt",
-            "quality=25",
+            "quality=35",
             "-r",
-            "80",
+            "100",
         ])
         .status()
         .map_err(|e| e.to_string())?;
@@ -72,15 +91,20 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
         return Err("No JPG pages generated".into());
     }
 
-    let mut cmd = Command::new(magick_path);
+    let mut magick_cmd = Command::new(magick_path);
 
-    for jpg in &jpgs {
-        cmd.arg(jpg);
+    #[cfg(target_os = "windows")]
+    {
+        magick_cmd.creation_flags(0x08000000);
     }
 
-    cmd.arg(&output_path);
+    for jpg in &jpgs {
+        magick_cmd.arg(jpg);
+    }
 
-    let status = cmd
+    magick_cmd.arg(&output_path);
+
+    let status = magick_cmd
         .status()
         .map_err(|e| e.to_string())?;
 
@@ -90,7 +114,7 @@ fn compress_pdf(app: tauri::AppHandle, input_path: String) -> Result<String, Str
 
     let _ = std::fs::remove_dir_all(&temp_dir);
 
-    Ok(output_path)
+    Ok(format!("Saved to Desktop:\n{}", output_path))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
